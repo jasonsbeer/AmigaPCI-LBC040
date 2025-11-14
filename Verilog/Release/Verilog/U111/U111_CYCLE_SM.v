@@ -24,11 +24,13 @@ Target Devices: iCE40-HX4K-TQ144
 
 Description: DATA TRANSFER CYCLE AND BUS SIZING STATE MACHINE
 
-Revision History:
-    19-APR-2025 : New bus sizing state machine. JN
-    31-MAY-2025 : Fixed burst cycle count value. JN
-    12-JUN-2025 : Fixed state machine crash when _LBEN is enabled. JN
-    13-JUN-2025 : Conditions most signals to support PCI DMA cycles. JN
+Date          Who  Description
+-----------------------------------
+19-APR-2025   JN   New bus sizing state machine.
+31-MAY-2025   JN   Fixed burst cycle count value.
+12-JUN-2025   JN   Fixed state machine crash when _LBEN is enabled.
+13-JUN-2025   JN   Conditions most signals to support PCI DMA cycles.
+13-NOV-2025   JN   Change S5 to drop burst check.
 
 GitHub: https://github.com/jasonsbeer/AmigaPCI
 */
@@ -64,7 +66,7 @@ module U111_CYCLE_SM (
 //TRANSFER START IS PASSED THROUGH DURING PCI DMA CYCLES.
 //DO NOT PASS _TS TO APCI DURING ON-BOARD MEMORY CYCLES (QUALIFIED BY _LBEN).
 
-wire CPU_CYCLE = !BGn || CYCLE_EN;
+assign CPU_CYCLE = !BGn || CYCLE_EN;
 assign TSn = CPU_CYCLE ? TS_OUT : 1'bz;
 assign TS_CPUn = !CPU_CYCLE ? TSn : 1'bz;
 
@@ -95,6 +97,7 @@ assign TBI_CPUn = !LBENn ? 1'b1 : TBIn;
 //assign TCI_CPUn = TCIn;
 //assign TCI_CPUn = !LBENn ? 1'b0 : TCIn;
 assign TCI_CPUn = !LBENn ? 1'b1 : TCIn;
+//assign TCI_CPUn = 1'b0;
 
 ///////////////////////
 // DATA BUS ENABLES //
@@ -138,7 +141,7 @@ assign A_AMIGA = A2_EN ? 2'b10 : A_040;
 // TERMINATION TYPES //
 //////////////////////
 
-//{TACKn, TEAn}
+//wire TERMINATION = {TACKn, TEAn};
 localparam [1:0] TERM_NORMAL = 2'b01;
 localparam [1:0] TERM_RETRY  = 2'b00;
 localparam [1:0] TERM_ERROR  = 2'b10;
@@ -188,9 +191,9 @@ always @(posedge CLK40) begin
         LW_TRANS <= 0;
         BURST <= 0;
         CYCLE_STATE <= 4'h0;
-        BURST_COUNT <= 2'b00;
-        UU_LATCHED <= 8'h00;
-        UM_LATCHED <= 8'h00;
+        BURST_COUNT <= 2'b0;
+        UU_LATCHED <= 8'h0;
+        UM_LATCHED <= 8'h0;
         TS_DELAY <= 1;
         CYCLE_EN <= 0;
     end else begin
@@ -219,13 +222,12 @@ always @(posedge CLK40) begin
                 PORT_MISMATCH <= (PORTSIZE && LW_TRANS);
                 TA_DIS <= (PORTSIZE && LW_TRANS);
                 FLIP_WORD <= (PORTSIZE && A_040[1]); //Flip the position of the words when at address $2.
-                TS_EN <= 0;
                 CYCLE_STATE <= 4'h2;
             end
             4'h2 : begin
                 case ({TACKn, TEAn})
                     TERM_NORMAL : begin
-                        CYCLE_STATE <= PORT_MISMATCH ? 4'h3 : (!BURST || !TBIn || BURST_COUNT == 2'h3 ? 4'h0 : 4'h2);
+                        CYCLE_STATE <= PORT_MISMATCH ? 4'h3 : ((!BURST || !TBIn || (BURST_COUNT == 2'h3)) ? 4'h0 : 4'h2);
                         BURST_COUNT <= BURST_COUNT + 1;
                         UU_LATCHED <= READ_CYCLE_ACTIVE ? UU_AMIGA_IN : 8'h00;
                         UM_LATCHED <= READ_CYCLE_ACTIVE ? UM_AMIGA_IN : 8'h00;
@@ -255,16 +257,11 @@ always @(posedge CLK40) begin
                 CYCLE_STATE <= 4'h5;
             end
             4'h5 : begin
-                case ({TACKn, TEAn})
-                    TERM_NORMAL : begin
-                        CYCLE_STATE <= BURST ? 4'h1 : 4'h0;
-                        TS_EN <= BURST;
-                        A2_EN <= 0;
-                    end
-                    TERM_RETRY, TERM_ERROR : begin
-                        CYCLE_STATE <= 4'h0;
-                    end
-                endcase
+                if ({TACKn, TEAn} != TERM_WAIT) begin
+                    //No 16-bit device on the AmigaPCI supports burst cycles.
+                    A2_EN <= 0;
+                    CYCLE_STATE <= 4'h0;
+                end
             end
 
         endcase

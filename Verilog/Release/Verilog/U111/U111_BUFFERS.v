@@ -57,7 +57,7 @@ assign BUFENn = !(CPU_CYCLE || (DMA_EN && !LBENn));
 
 assign BUFDIR = ((CPU_CYCLE && RnW) || (DMA_EN && !RnW));
 
-//TURN ON A1 ADDRESS BUFFER DURING DMA
+//TURN ON A1 ADDRESS BUFFER DURING PCI DMA
 assign DMAAn = !DMA_EN;
 
 endmodule

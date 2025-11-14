@@ -91,7 +91,14 @@ SB_PLL40_2F_PAD #(
     .RESETB         (1'b1),
     .PACKAGEPIN     (CLK40_PAD),
     .PLLOUTGLOBALA  (CLK80),
-    .PLLOUTGLOBALB  (CLK40)
+    .PLLOUTGLOBALB  (CLK40),
+
+    .EXTFEEDBACK       (1'b0),
+    .DYNAMICDELAY      (8'b00000000),
+    .BYPASS            (1'b0),
+    .SDI               (1'b0),
+    .SCLK              (1'b0),
+    .LATCHINPUTVALUE   (1'b0)
 );
 
 //////////////
